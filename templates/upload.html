@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Secure Upload</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='sup.css') }}">
+<script src="{{ url_for('static', filename='sup.js') }}"></script>
+<style>
+</style>
+</head>
+<body>
+
+<form id="form" method="post" action="{{ url_for('index') }}" enctype="multipart/form-data">
+<div class="container space">
+
+<div class="row">
+<h1>Secure upload</h1>
+<p>Lorem ipsum. Please upload a file here. Someone should probably write
+instructions here or something. Maybe mention, where the file is going.</p>
+</div>
+
+<div class="row space">
+<label for="file" class="button button-primary">Select the file to upload</label>
+<input id="file" name="file" type="file" />
+</div>
+
+<div id="rname" class="row reveal">
+<p class="button">Name: <span id="iname"></span></p>
+</div>
+
+<div id="rdata" class="row reveal">
+<div class="six columns">
+<p class="button">Size: <span id="isize"></span></p>
+</div>
+<div class="six columns">
+<p class="button">Type: <span id="itype"></span></p>
+</div>
+</div>
+
+<div id="rupload" class="row reveal space">
+<input id="upload" type="button" class="button-primary" value="Upload the file" />
+</div>
+
+<div id="rprog" class="row reveal">
+<div class="six columns">
+<p class="button">Uploaded <span id="iprog">0</span> %</p>
+</div>
+<div class="six columns">
+<p id="ires" class="button reveal"></p>
+</div>
+</div>
+
+</div>
+</form>
+
+</body>
+</html>
