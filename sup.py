@@ -8,6 +8,7 @@ import sys
 from os import environ, path
 from uuid import uuid4
 from datetime import datetime
+from subprocess import run, CalledProcessError
 
 from flask import Blueprint, Flask, render_template, request
 from werkzeug.utils import secure_filename
@@ -55,6 +56,16 @@ def upload_request(req):
     fullpath = path.join(app.config['upload_dir'], fn)
     say('Saved: {}', fn)
     f.save(fullpath)
+    if app.config['upload_hook']:
+        cmd = [app.config['upload_hook'], app.config['upload_dir'], fn]
+        try:
+            ret = run(cmd, check=True, encoding='utf-8')
+        except CalledProcessError as cpe:
+            say('{}', cpe)
+            return 'Upload hook failed', 500
+        except FileNotFoundError as fnfe:
+            say('{}', fnfe)
+            return 'Upload hook not found', 500
     return 'OK'
 
 
@@ -68,7 +79,8 @@ def get_config():
         'upload_hook': environ.get('UPLOAD_HOOK', ''),
         'allow_filenames': bool(environ.get('ALLOW_FILENAMES', False)),
         'allow_extensions':
-            environ.get('ALLOW_EXTENSIONS', DEF_EXTENSIONS).split() }
+            environ.get('ALLOW_EXTENSIONS', DEF_EXTENSIONS).split(),
+        'MAX_CONTENT_LENGTH': int(environ.get('MAX_SIZE', '1')) }
 
 
 def main():
@@ -79,7 +91,8 @@ def main():
         sys.exit(1)
     say('Allowed extensions: {}', ' '.join(app.config['allow_extensions']))
     say('Allow user defined filenames: {}', app.config['allow_filenames'])
-    say('Directory for uploads: {}', app.config['upload_dir'])
+    say('Upload directory: {}', app.config['upload_dir'])
+    say('Upload hook: `{}`', app.config['upload_hook'])
     say('URL prefix: {}', environ.get('URL_PREFIX', '/sup'))
     app.run(host=app.config['addr'], port=app.config['port'], debug=debug)
 
