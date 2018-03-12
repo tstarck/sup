@@ -5,7 +5,7 @@
 
 import sys
 
-from os import environ, path
+from os import chmod, environ, path
 from uuid import uuid4
 from datetime import datetime
 from subprocess import run, CalledProcessError
@@ -43,6 +43,22 @@ def is_valid_filename(fn):
     base, ext = path.splitext(fn)
     return ext.lstrip('.') in app.config['allow_extensions']
 
+def run_hook(hook, filename):
+    if not hook:
+        return
+    cmd = [hook, app.config['upload_dir'], filename]
+    try:
+        chmod(hook, 0o700)
+        run(cmd, check=True, encoding='utf-8')
+    except CalledProcessError as cpe:
+        say('{}', cpe)
+        return 'Upload hook failed', 500
+    except FileNotFoundError as fnfe:
+        say('{}', fnfe)
+        return 'Upload hook not found', 500
+    except PermissionError as pe:
+        say('{}', pe)
+        return 'Upload hook permission failed', 500
 
 def upload_request(req):
     if 'file' not in req.files:
@@ -59,22 +75,10 @@ def upload_request(req):
         say('Invalid filename: {}', fn)
         return 'Invalid filename', 400
     fullpath = path.join(app.config['upload_dir'], fn)
-    say('Saved: {}', fn)
     f.save(fullpath)
-    if app.config['upload_hook']:
-        cmd = [app.config['upload_hook'], app.config['upload_dir'], fn]
-        try:
-            ret = run(cmd, check=True, encoding='utf-8')
-        except CalledProcessError as cpe:
-            say('{}', cpe)
-            return 'Upload hook failed', 500
-        except FileNotFoundError as fnfe:
-            say('{}', fnfe)
-            return 'Upload hook not found', 500
-        except PermissionError as pe:
-            say('{}', pe)
-            return 'Upload hook permission failed', 500
-    return 'OK'
+    say('Saved: {}', fn)
+    run_hook(app.config['upload_hook'], fn)
+    return 'OK', 200
 
 
 def get_config():
