@@ -9,13 +9,12 @@
 </head>
 <body>
 
-<form id="form" method="post" action="{{ url_for('index') }}" enctype="multipart/form-data">
+<form id="form" method="post" action="{{ url_for('sup.index') }}" enctype="multipart/form-data">
 <div class="container space">
 
 <div class="row">
-<h1>Secure upload</h1>
-<p>Lorem ipsum. Please upload a file here. Someone should probably write
-instructions here or something. Maybe mention, where the file is going.</p>
+<h1>{{ title }}</h1>
+<p>{{ intro }}</p>
 </div>
 
 <div class="row space">

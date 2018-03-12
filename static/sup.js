@@ -1,26 +1,32 @@
-/* sup.js */
+/* sup.js
+ * vim: set ts=2 sw=2 sts=2 et :
+ */
+
+function set_result(text, color) {
+  var finish = document.getElementById('ires');
+  finish.textContent = text;
+  finish.style.display = 'block';
+  finish.style.backgroundColor = color;
+}
 
 function complete(e) {
-  var finish = document.getElementById('ires');
-  finish.textContent = 'Success';
-  finish.style.display = 'block';
-  finish.style.backgroundColor = '#4bb543';
+  if (e.target.status == 200) {
+    set_result('Success', '#4bb543');
+  }
+  else {
+    console.log(e)
+    set_result(e.target.statusText, '#ff0033');
+  }
 }
 
 function canceled(e) {
   console.log(e);
-  var finish = document.getElementById('ires');
-  finish.textContent = 'Upload canceled';
-  finish.style.display = 'block';
-  finish.style.backgroundColor = '#111111';
+  set_result('Upload canceled', '#111111');
 }
 
 function failed(e) {
   console.log(e);
-  var finish = document.getElementById('ires');
-  finish.textContent = 'Upload failed';
-  finish.style.display = 'block';
-  finish.style.backgroundColor = '#ff0033';
+  set_result('Upload failed', '#ff0033');
 }
 
 function progress(e) {
@@ -30,7 +36,8 @@ function progress(e) {
 
 function fileUpload() {
   var xhr = new XMLHttpRequest();
-  var fd = new FormData(document.getElementById('form'));
+  var fm = document.getElementById('form');
+  var fd = new FormData(fm);
 
   document.getElementById('rprog').style.display = 'block';
 
@@ -39,8 +46,7 @@ function fileUpload() {
   xhr.addEventListener('abort', canceled, false);
   xhr.addEventListener('error', failed, false);
 
-  /* FIXME We need to support other path than / only */
-  xhr.open('POST', '/');
+  xhr.open('POST', fm.getAttribute('action'));
   xhr.send(fd);
 }
 
@@ -52,7 +58,7 @@ function fileSelect() {
     document.getElementById('rprog').style.display = 'none';
     document.getElementById('iname').textContent = file.name;
     document.getElementById('isize').textContent = file.size;
-    document.getElementById('itype').textContent = file.type;
+    document.getElementById('itype').textContent = file.type || 'unknown';
     document.getElementById('rupload').style.display = 'block';
   }
 }
