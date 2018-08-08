@@ -1,0 +1,15 @@
+---
+# Example configuration for sup with default values.
+# See README.md for details.
+
+hook:
+  script:
+
+security:
+  allow_user_filenames: false
+  allowed_extensions:
+  max_upload_size: 1
+
+ui:
+  title: Sup
+  intro: Please start the file upload by first selecting file.
