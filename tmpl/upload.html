@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>Secure Upload</title>
+<title>{{ title }}</title>
 <link rel="stylesheet" href="{{ url_for('sup.index', filename='sup.css') }}">
 <script src="{{ url_for('sup.index', filename='sup.js') }}"></script>
 <style>
@@ -10,43 +10,24 @@
 <body>
 
 <form id="form" method="post" action="{{ url_for('sup.index') }}" enctype="multipart/form-data">
-<div class="container space">
 
-<div class="row">
+<div>
 <h1>{{ title }}</h1>
 <p>{{ intro }}</p>
-</div>
-
-<div class="row space">
-<label for="file" class="button button-primary">Select the file to upload</label>
+<label for="file" class="button">Select a file</label>
 <input id="file" name="file" type="file" />
 </div>
 
-<div id="rname" class="row reveal">
-<p class="button">Name: <span id="iname"></span></p>
+<div id="infobox">
+<table>
+<tr><td>Name</td><td><span id="filename"></span></td></tr>
+<tr><td>Type</td><td><span id="filetype"></span></td></tr>
+<tr><td>Size</td><td><span id="filesize"></span></td></tr>
+</table>
+<input id="upload" class="button" type="button" value="Upload the file" />
 </div>
 
-<div id="rdata" class="row reveal">
-<div class="six columns">
-<p class="button">Size: <span id="isize"></span></p>
-</div>
-<div class="six columns">
-<p class="button">Type: <span id="itype"></span></p>
-</div>
-</div>
-
-<div id="rupload" class="row reveal space">
-<input id="upload" type="button" class="button-primary" value="Upload the file" />
-</div>
-
-<div id="rprog" class="row reveal">
-<div class="six columns">
-<p class="button">Uploaded <span id="iprog">0</span> %</p>
-</div>
-<div class="six columns">
-<p id="ires" class="button reveal"></p>
-</div>
-</div>
+<div id="progress" class="button"></div>
 
 </div>
 </form>

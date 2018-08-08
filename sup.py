@@ -1,25 +1,103 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# TODO: better headers, filename mangle support, add magic support
+# TODO: uwsgi, better headers maybe
 
 import sys
 
 from os import chmod, environ, path
+from yaml import safe_load
 from uuid import uuid4
 from datetime import datetime
 from subprocess import run, CalledProcessError
+
+from pprint import pprint
 
 from werkzeug.utils import secure_filename
 from flask import (Blueprint, Flask,
     render_template, request, send_from_directory)
 
 
-DEF_EXTENSIONS = 'asc bin txt log json yml yaml pdf gif jpg jpeg png gz xz zip'
-DEF_INTRO = 'Please start the file upload by first selecting the file.'
+UPLOAD_DIR = '/data'
+CONFIG_DIR = '/sup'
 
-PREFIX = environ.get('URL_PREFIX', '/sup')
+DEF_INTRO = 'Please start the file upload by first selecting file.'
+
+PREFIX = environ.get('URL_PREFIX', '/')
 blueprint = Blueprint('sup', __name__, template_folder='tmpl')
+
+
+def get_value(c, d, i, j):
+    try:
+        return c.get(i).get(j, d)
+    except AttributeError:
+        return d
+
+
+def get_config():
+    conffile = path.join(CONFIG_DIR, 'config.yaml')
+    with open(conffile) as File:
+        cnf = safe_load(File)
+        return {
+            'udir': UPLOAD_DIR,
+            'hook': get_value(cnf, None, 'hook', 'script'),
+            'addr': get_value(cnf, '0.0.0.0', 'bind', 'addr'),
+            'port': get_value(cnf, '8000', 'bind', 'port'),
+            'exts': get_value(cnf, None, 'security', 'allowed_extensions'),
+            'udfn': get_value(cnf, False, 'security', 'allow_user_filenames'),
+            'size': 1024*1024*int(get_value(cnf, 1, 'security', 'max_upload_size')),
+            'title': get_value(cnf, 'Sup', 'ui', 'title'),
+            'intro': get_value(cnf, DEF_INTRO, 'ui', 'intro') }
+
+
+def is_allowed(filename):
+    if app.config['exts']:
+        if filename and filename.rsplit('.')[-1] in app.config['exts']:
+            return 200
+        else:
+            return 403
+    return 200
+
+
+def decide_fn(filename):
+    if filename and app.config['udfn']:
+        return secure_filename(filename)
+    ts = datetime.now().strftime('%F-%H-%M-%S')
+    return '{}.{}.bin'.format(ts, str(uuid4())[24:])
+
+
+def run_hook(filename):
+    if not app.config['hook']:
+        return
+    script = path.join(CONFIG_DIR, app.config['hook'])
+    if not path.exists(script):
+        return
+    cmd = [script, app.config['udir'], filename]
+    try:
+        run(cmd, check=True, encoding='utf-8')
+    except CalledProcessError as cpe:
+        return 'Upload hook failed', 500
+    except FileNotFoundError as fnfe:
+        return 'Upload hook not found', 500
+    except PermissionError as pe:
+        return 'Upload hook permission failed', 500
+    app.logger.info('Ran hook `%s`', app.config['hook'])
+
+
+def upload_request(req):
+    if 'file' not in req.files:
+        app.logger.error('400 Missing input')
+        return 'Missing input', 400
+    f = req.files['file']
+    code = is_allowed(f.filename)
+    if code != 200:
+        return 'Invalid filename', code
+    filename = decide_fn(f.filename)
+    fullpath = path.join(app.config['udir'], filename)
+    f.save(fullpath)
+    app.logger.info('Received `%s`', filename)
+    run_hook(filename)
+    return 'OK', 200
 
 
 @blueprint.route('/', methods=['GET', 'POST'])
@@ -27,6 +105,8 @@ blueprint = Blueprint('sup', __name__, template_folder='tmpl')
 def index(filename=None):
     if request.method == 'POST':
         return upload_request(request)
+    elif filename == 'favicon.ico':
+        return send_from_directory('static', 'favicon.png')
     elif filename:
         return send_from_directory('static', filename)
     else:
@@ -35,78 +115,14 @@ def index(filename=None):
             intro=app.config['intro'])
 
 
-def say(msg, arg=None):
-    print(' - ' + msg.format(arg))
-
-
-def is_valid_filename(fn):
-    base, ext = path.splitext(fn)
-    return ext.lstrip('.') in app.config['allow_extensions']
-
-def run_hook(hook, filename):
-    if not hook:
-        return
-    cmd = [hook, app.config['upload_dir'], filename]
-    try:
-        chmod(hook, 0o700)
-        run(cmd, check=True, encoding='utf-8')
-    except CalledProcessError as cpe:
-        say('{}', cpe)
-        return 'Upload hook failed', 500
-    except FileNotFoundError as fnfe:
-        say('{}', fnfe)
-        return 'Upload hook not found', 500
-    except PermissionError as pe:
-        say('{}', pe)
-        return 'Upload hook permission failed', 500
-
-def upload_request(req):
-    if 'file' not in req.files:
-        say('{}', 'File not found')
-        return 'File not found', 400
-    f = req.files['file']
-    fn = None
-    if f.filename and app.config['allow_filenames']:
-        fn = secure_filename(f.filename)
-    if not fn:
-        ts = datetime.now().strftime('%F-%H-%M-%S')
-        fn = '{}.{}.bin'.format(ts, str(uuid4())[24:])
-    if not is_valid_filename(fn):
-        say('Invalid filename: {}', fn)
-        return 'Invalid filename', 400
-    fullpath = path.join(app.config['upload_dir'], fn)
-    f.save(fullpath)
-    say('Saved: {}', fn)
-    run_hook(app.config['upload_hook'], fn)
-    return 'OK', 200
-
-
-def get_config():
-    return {
-        'addr': environ.get('SERVER_ADDR', '0.0.0.0'),
-        'port': int(environ.get('SERVER_PORT', '8000')),
-        'title': environ.get('TITLE', 'Sup'),
-        'intro': environ.get('INTRO', DEF_INTRO),
-        'upload_dir': path.realpath(environ.get('UPLOAD_DIR', '/sup')),
-        'upload_hook': environ.get('UPLOAD_HOOK', ''),
-        'allow_filenames': bool(environ.get('ALLOW_FILENAMES', False)),
-        'allow_extensions':
-            environ.get('ALLOW_EXTENSIONS', DEF_EXTENSIONS).split(),
-        'MAX_CONTENT_LENGTH': 1024*1024*int(environ.get('MAX_FILE_SIZE', '1'))}
-
-
 def main():
     debug = bool(environ.get('DEBUG', False))
     app.config.update(get_config())
-    if not path.isdir(app.config['upload_dir']):
-        print('upload directory does not exist', file=sys.stderr)
+    if debug:
+        pprint(app.config)
+    if not path.isdir(app.config['udir']):
+        print('Upload directory does not exist', file=sys.stderr)
         sys.exit(1)
-    say('URL prefix: {}', PREFIX)
-    say('Upload hook: `{}`', app.config['upload_hook'])
-    say('Upload directory: {}', app.config['upload_dir'])
-    say('File size limit: {} B', app.config['MAX_CONTENT_LENGTH'])
-    say('Allow user defined filenames: {}', app.config['allow_filenames'])
-    say('Allowed extensions: {}', ' '.join(app.config['allow_extensions']))
     app.run(host=app.config['addr'], port=app.config['port'], debug=debug)
 
 
