@@ -8,10 +8,10 @@ import sys
 from os import chmod, environ, path
 from yaml import safe_load
 from uuid import uuid4
+from pprint import pprint
 from datetime import datetime
 from subprocess import run, CalledProcessError
-
-from pprint import pprint
+from logging.config import dictConfig
 
 from werkzeug.utils import secure_filename
 from flask import (Blueprint, Flask,
@@ -25,6 +25,10 @@ DEF_INTRO = 'Please start the file upload by first selecting file.'
 
 PREFIX = environ.get('URL_PREFIX', '/')
 blueprint = Blueprint('sup', __name__, template_folder='tmpl')
+dictConfig({
+    'version': 1,
+    'root': { 'level': 'INFO' }
+})
 
 
 def get_value(c, d, i, j):
@@ -81,7 +85,7 @@ def run_hook(filename):
         return 'Upload hook not found', 500
     except PermissionError as pe:
         return 'Upload hook permission failed', 500
-    app.logger.info('Ran hook `%s`', app.config['hook'])
+    app.logger.info('Ran hook: %s', app.config['hook'])
 
 
 def upload_request(req):
@@ -95,7 +99,7 @@ def upload_request(req):
     filename = decide_fn(f.filename)
     fullpath = path.join(app.config['udir'], filename)
     f.save(fullpath)
-    app.logger.info('Received `%s`', filename)
+    app.logger.info('Received: %s', filename)
     run_hook(filename)
     return 'OK', 200
 
