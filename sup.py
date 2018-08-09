@@ -21,7 +21,7 @@ from flask import (Blueprint, Flask,
 UPLOAD_DIR = '/data'
 CONFIG_DIR = '/sup'
 
-DEF_INTRO = 'Please start the file upload by first selecting file.'
+DEFAULT_INTRO = 'Please start the file upload by first selecting file.'
 
 PREFIX = environ.get('URL_PREFIX', '/')
 blueprint = Blueprint('sup', __name__, template_folder='tmpl')
@@ -44,14 +44,14 @@ def get_config():
         cnf = safe_load(File)
         return {
             'udir': UPLOAD_DIR,
-            'hook': get_value(cnf, None, 'hook', 'script'),
             'addr': get_value(cnf, '0.0.0.0', 'bind', 'addr'),
             'port': get_value(cnf, '8000', 'bind', 'port'),
             'exts': get_value(cnf, None, 'security', 'allowed_extensions'),
             'udfn': get_value(cnf, False, 'security', 'allow_user_filenames'),
             'size': 1024*1024*int(get_value(cnf, 1, 'security', 'max_upload_size')),
             'title': get_value(cnf, 'Sup', 'ui', 'title'),
-            'intro': get_value(cnf, DEF_INTRO, 'ui', 'intro') }
+            'intro': get_value(cnf, DEFAULT_INTRO, 'ui', 'intro'),
+            'hooks': cnf.get('hooks') or [] }
 
 
 def is_allowed(filename):
@@ -70,11 +70,10 @@ def decide_fn(filename):
     return '{}.{}.bin'.format(ts, str(uuid4())[24:])
 
 
-def run_hook(filename):
-    if not app.config['hook']:
-        return
-    script = path.join(CONFIG_DIR, app.config['hook'])
+def run_hook(hook, filename):
+    script = path.join(CONFIG_DIR, hook)
     if not path.exists(script):
+        app.logger.warning('Hook not found: %s', hook)
         return
     cmd = [script, app.config['udir'], filename]
     try:
@@ -85,7 +84,7 @@ def run_hook(filename):
         return 'Upload hook not found', 500
     except PermissionError as pe:
         return 'Upload hook permission failed', 500
-    app.logger.info('Ran hook: %s', app.config['hook'])
+    app.logger.info('Ran hook: %s', hook)
 
 
 def upload_request(req):
@@ -100,7 +99,8 @@ def upload_request(req):
     fullpath = path.join(app.config['udir'], filename)
     f.save(fullpath)
     app.logger.info('Received: %s', filename)
-    run_hook(filename)
+    for hook in app.config['hooks']:
+        run_hook(hook, filename)
     return 'OK', 200
 
 

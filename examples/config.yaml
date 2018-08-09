@@ -2,8 +2,7 @@
 # Example configuration for sup with default values.
 # See README.md for details.
 
-hook:
-  script:
+hooks: []
 
 security:
   allow_user_filenames: false
