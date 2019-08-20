@@ -1,6 +1,6 @@
 /* sup.js
  * vim: set ts=2 sw=2 sts=2 et :
- * Copyright (c) 2018 Tuomas Starck
+ * Copyright (c) 2018,2019 Tuomas Starck
  */
 
 function $(id) {
@@ -9,28 +9,41 @@ function $(id) {
 
 function progress(e) {
   var len = e.lengthComputable? Math.round(e.loaded * 100 / e.total): 0;
-  console.log('progress() ' + len.toString() + '%');
   $('progress').style.width = len.toString() + '%';
 }
 
 function complete(e) {
-  if (e.target.status == 200) {
-    console.log('complete() status 200');
-    $('progress').textContent = 'Success';
-  }
-  else {
-    console.log(e);
+  $('progress').style.width = '100%';
+  switch (e.target.status) {
+    case 200:
+      $('progress').textContent = 'Success';
+      $('progress').style.background = '#32c809';
+      $('progress').style.color = 'white';
+      break;
+    case 403:
+      failed(e, e.target.statusText + ': ' + e.target.responseText);
+      break;
+    case 500:
+      failed(e, e.target.statusText);
+      break;
+    default:
+      failed(e, 'Unknown error');
   }
 }
 
 function canceled(e) {
-  console.log('canceled()');
   $('progress').textContent = 'Canceled';
+  $('progress').style.width = '100%';
 }
 
-function failed(e) {
-  console.log('failed()');
-  $('progress').textContent = 'Failed';
+function failed(e, msg='Failed') {
+  if (e.target.status == 0) {
+    msg = 'Error: upload too large';
+  }
+  $('progress').textContent = msg;
+  $('progress').style.background = '#de1738';
+  $('progress').style.color = 'white';
+  $('progress').style.width = '100%';
 }
 
 function fileUpload() {

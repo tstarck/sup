@@ -1,14 +1,61 @@
 ---
-# Example configuration for sup with default values.
-# See README.md for details.
+# Sup example configuration with all default values.
+#
+# Assuming configuration file is in <confdir>/config.yaml use following bind
+# mount to use it:
+#
+#   -v <confdir>:/conf:ro
 
-hooks: []
+
+app:
+  # HTTP port to listen to. Please note, changing this does not affect uWSGI
+  # port, which can be controlled via environment variable.
+  #
+  port: 8000
+
+  # By default Sup assumes to be on a root of a domain. If this is not the
+  # case, set the required URL prefix here.
+  #
+  url_prefix: /
+
+  # Directory where uploaded files are saved.
+  #
+  upload_dir: /data
+
+  # Hooks are any executables which, when configured, are run each time a file is
+  # uploaded successfully. When invoked, hook is given two arguments: the path of
+  # the upload directory and the name of the file uploaded.
+  #
+  # To use a hook, include it to the configuration directory and list the
+  # executable name here.
+  #
+  hooks: []
+
 
 security:
-  allow_user_filenames: false
-  allowed_extensions:
-  max_upload_size: 1
+  # Set the maximum upload file size. Uses kB as the unit. Default is 1 MB.
+  #
+  max_upload_size: 1024
 
+  # By default Sup gives each uploaded file a name of form:
+  #
+  #  <timestamp>.<12_random_hex_chars>.bin
+  #
+  # Change this to `true` to allow user specified filenames. Even when allowed,
+  # filenames are sanitized with werkzeug.utils.secure_filename() for obvious
+  # reasons.
+  #
+  allow_user_filenames: false
+
+  # If specified, only files with extensions listed here, are allowed to be
+  # uploaded. Default is to allow any upload regardless of the extension.
+  #
+  allowed_extensions:
+
+
+# Sup user interface has a title and text paragraph. Their contents can be
+# changed here:
+#
 ui:
   title: Sup
   intro: Please start the file upload by first selecting file.

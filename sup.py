@@ -1,66 +1,63 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-# TODO: uwsgi, better headers maybe
 
 import sys
 
-from os import chmod, environ, path
-from yaml import safe_load
+from os import environ, path
 from uuid import uuid4
-from pprint import pprint
+from pprint import pformat
 from datetime import datetime
 from subprocess import run, CalledProcessError
-from logging.config import dictConfig
 
+from yaml import safe_load
 from werkzeug.utils import secure_filename
-from flask import (Blueprint, Flask,
-    render_template, request, send_from_directory)
+from flask import (Blueprint, Flask, render_template,
+                   request, send_from_directory)
 
 
-UPLOAD_DIR = '/data'
-CONFIG_DIR = '/sup'
-
+CONFIG_DIR = '/conf'
 DEFAULT_INTRO = 'Please start the file upload by first selecting file.'
 
-PREFIX = environ.get('URL_PREFIX', '/')
 blueprint = Blueprint('sup', __name__, template_folder='tmpl')
-dictConfig({
-    'version': 1,
-    'root': { 'level': 'INFO' }
-})
 
 
-def get_value(c, d, i, j):
+def get_value(conf, section, key, default):
     try:
-        return c.get(i).get(j, d)
+        return conf.get(section).get(key, default)
     except AttributeError:
-        return d
+        return default
 
 
 def get_config():
-    conffile = path.join(CONFIG_DIR, 'config.yaml')
-    with open(conffile) as File:
-        cnf = safe_load(File)
-        return {
-            'udir': UPLOAD_DIR,
-            'addr': get_value(cnf, '0.0.0.0', 'bind', 'addr'),
-            'port': get_value(cnf, '8000', 'bind', 'port'),
-            'exts': get_value(cnf, None, 'security', 'allowed_extensions'),
-            'udfn': get_value(cnf, False, 'security', 'allow_user_filenames'),
-            'size': 1024*1024*int(get_value(cnf, 1, 'security', 'max_upload_size')),
-            'title': get_value(cnf, 'Sup', 'ui', 'title'),
-            'intro': get_value(cnf, DEFAULT_INTRO, 'ui', 'intro'),
-            'hooks': cnf.get('hooks') or [] }
+    cnf = {}
+    configpath = path.join(CONFIG_DIR, 'config.yaml')
+    try:
+        with open(configpath) as config:
+            cnf = safe_load(config)
+    except FileNotFoundError:
+        pass
+    except NotADirectoryError:
+        pass
+    max_size = get_value(cnf, 'security', 'max_upload_size', 1024)
+    return {
+        'DEBUG': bool(environ.get('DEBUG', False)),
+        'MAX_CONTENT_LENGTH': 1024*int(max_size),
+        'port': get_value(cnf, 'app', 'port', '8000'),
+        'prefix': get_value(cnf, 'app', 'url_prefix', '/'),
+        'updir': get_value(cnf, 'app', 'upload_dir', '/data'),
+        'hooks': get_value(cnf, 'app', 'hooks', []),
+        'udfn': get_value(cnf, 'security', 'allow_user_filenames', False),
+        'exts': get_value(cnf, 'security', 'allowed_extensions', None),
+        'title': get_value(cnf, 'ui', 'title', 'Sup'),
+        'intro': get_value(cnf, 'ui', 'intro', DEFAULT_INTRO)}
 
 
 def is_allowed(filename):
-    if app.config['exts']:
-        if filename and filename.rsplit('.')[-1] in app.config['exts']:
-            return 200
-        else:
-            return 403
-    return 200
+    if not app.config['exts']:
+        return 200
+    if filename and filename.rsplit('.')[-1] in app.config['exts']:
+        return 200
+    return 403
 
 
 def decide_fn(filename):
@@ -75,14 +72,14 @@ def run_hook(hook, filename):
     if not path.exists(script):
         app.logger.warning('Hook not found: %s', hook)
         return
-    cmd = [script, app.config['udir'], filename]
+    cmd = [script, app.config['updir'], filename]
     try:
         run(cmd, check=True, encoding='utf-8')
-    except CalledProcessError as cpe:
+    except CalledProcessError:
         return 'Upload hook failed', 500
-    except FileNotFoundError as fnfe:
+    except FileNotFoundError:
         return 'Upload hook not found', 500
-    except PermissionError as pe:
+    except PermissionError:
         return 'Upload hook permission failed', 500
     app.logger.info('Ran hook: %s', hook)
 
@@ -91,13 +88,12 @@ def upload_request(req):
     if 'file' not in req.files:
         app.logger.error('400 Missing input')
         return 'Missing input', 400
-    f = req.files['file']
-    code = is_allowed(f.filename)
+    fobj = req.files['file']
+    code = is_allowed(fobj.filename)
     if code != 200:
         return 'Invalid filename', code
-    filename = decide_fn(f.filename)
-    fullpath = path.join(app.config['udir'], filename)
-    f.save(fullpath)
+    filename = decide_fn(fobj.filename)
+    fobj.save(path.join(app.config['updir'], filename))
     app.logger.info('Received: %s', filename)
     for hook in app.config['hooks']:
         run_hook(hook, filename)
@@ -113,25 +109,21 @@ def index(filename=None):
         return send_from_directory('static', 'favicon.png')
     elif filename:
         return send_from_directory('static', filename)
-    else:
-        return render_template('upload.html',
-            title=app.config['title'],
-            intro=app.config['intro'])
+    return render_template('upload.html',
+            title=app.config['title'], intro=app.config['intro'])
 
 
 def main():
-    debug = bool(environ.get('DEBUG', False))
-    app.config.update(get_config())
-    if debug:
-        pprint(app.config)
-    if not path.isdir(app.config['udir']):
-        print('Upload directory does not exist', file=sys.stderr)
+    app.logger.debug(pformat(app.config))
+    if not path.isdir(app.config['updir']):
+        app.logger.error('Upload directory does not exist')
         sys.exit(1)
-    app.run(host=app.config['addr'], port=app.config['port'], debug=debug)
+    app.run(host='0.0.0.0', port=app.config['port'], debug=app.config['DEBUG'])
 
 
 app = Flask(__name__)
-app.register_blueprint(blueprint, url_prefix=PREFIX)
+app.config.update(get_config())
+app.register_blueprint(blueprint, url_prefix=app.config['prefix'])
 
 if __name__ == '__main__':
     main()
