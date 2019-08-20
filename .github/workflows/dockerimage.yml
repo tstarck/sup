@@ -1,9 +1,6 @@
 name: Build release image
 
-on:
-  push:
-    branches:
-    - master
+on: [push]
 
 jobs:
   build:
@@ -11,4 +8,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Build image
-      run: docker build . --pull -t humppa:$(date +%F)
+      run: docker build . --pull -t docker.pkg.github.com/humppa/sup/sup:$(date +%F)
+    - name: Push to Github
+      run: docker push docker.pkg.github.com/humppa/sup/sup:$(date +%F)
